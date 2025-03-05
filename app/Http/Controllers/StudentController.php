@@ -107,13 +107,13 @@ class StudentController extends Controller
 
         // Data validation
         $validator = Validator::make($row, [
-            'student_id' => 'required|unique:students,student_id',
-            'last_name' => 'required',
-            'first_name' => 'required',
-            'semester' => 'required',
-            'course' => 'required',
-            'campus' => 'required',
-            'scholarship_type' => 'required|in:Academic,Athletic,Need-Based,Government'
+            'Student ID' => 'required|unique:students,student_id',
+            'Last Name' => 'required',
+            'First Name' => 'required',
+            'Semester' => 'required',
+            'Course' => 'required',
+            'Campus' => 'required',
+            'Scholarship Type' => 'required|in:Academic,Athletic,Need-Based,Government'
         ]);
 
         if ($validator->fails()) {
@@ -122,14 +122,14 @@ class StudentController extends Controller
         }
 
         $students[] = [
-            'student_id' => $row['student_id'],
-            'last_name' => $row['last_name'],
-            'first_name' => $row['first_name'],
-            'middle_name' => $row['middle_name'] ?? null,
-            'semester' => $row['semester'],
-            'course' => $row['course'],
-            'campus' => $row['campus'],
-            'scholarship_type' => $row['scholarship_type'],
+            'student_id' => $row['Student ID'],
+            'last_name' => $row['Last Name'],
+            'first_name' => $row['First Name'],
+            'middle_name' => $row['Middle Name'] ?? null,
+            'semester' => $row['Semester'],
+            'course' => $row['Course'],
+            'campus' => $row['Campus'],
+            'scholarship_type' => $row['Scholarship Type'],
             'created_at' => now(),
             'updated_at' => now(),
         ];

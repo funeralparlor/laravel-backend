@@ -19,7 +19,7 @@ return [
 
     'allowed_methods' => ['*'],
 
-    'allowed_origins' => ['http://localhost:5173'],
+    'allowed_origins' => ['https://vue-frontend-8ioa.onrender.com'],
 
     'allowed_origins_patterns' => [],
 

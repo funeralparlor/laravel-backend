@@ -16,9 +16,65 @@ use Illuminate\Support\Facades\Validator;
 class StudentController extends Controller
 {
     // Get all students
-    public function index()
+    public function index(Request $request)
     {
-        return response()->json(Students::all());
+        // Validate query parameters
+        $request->validate([
+            'page' => 'nullable|integer|min:1',
+            'limit' => 'nullable|integer|min:1',
+            'semester' => 'nullable|array',
+            'course' => 'nullable|array',
+            'campus' => 'nullable|array',
+            'scholarship_type' => 'nullable|array',
+            'search' => 'nullable|string|max:100',
+        ]);
+    
+        // Get pagination parameters
+        $page = $request->query('page', 1);
+        $limit = $request->query('limit', 10);
+        
+        // If limit is -1, we want all records (no pagination)
+        $query = Students::query();
+        
+        // Apply filters
+        if ($request->has('semester') && count($request->semester) > 0) {
+            $query->whereIn('semester', $request->semester);
+        }
+        
+        if ($request->has('course') && count($request->course) > 0) {
+            $query->whereIn('course', $request->course);
+        }
+        
+        if ($request->has('campus') && count($request->campus) > 0) {
+            $query->whereIn('campus', $request->campus);
+        }
+        
+        if ($request->has('scholarship_type') && count($request->scholarship_type) > 0) {
+            $query->whereIn('scholarship_type', $request->scholarship_type);
+        }
+        
+        // Search by student ID
+        if ($request->has('search') && !empty($request->search)) {
+            $query->where('student_id', 'LIKE', '%' . $request->search . '%');
+        }
+        
+        if ($limit === -1) {
+            $students = $query->get();
+            return response()->json([
+                'data' => $students,
+                'page' => 1,
+                'pages' => 1,
+                'total' => $students->count(),
+            ]);
+        } else {
+            $students = $query->paginate($limit, ['*'], 'page', $page);
+            return response()->json([
+                'data' => $students->items(),
+                'page' => $students->currentPage(),
+                'pages' => $students->lastPage(),
+                'total' => $students->total(),
+            ]);
+        }
     }
 
     // Create student with validation
@@ -154,6 +210,46 @@ class StudentController extends Controller
             'error' => $e->getMessage()
         ], 500);
     }
+}
+
+
+/**
+ * Handle bulk deletion of students
+ * 
+ * @param  \Illuminate\Http\Request  $request
+ * @return \Illuminate\Http\JsonResponse
+ */
+public function bulkDelete(Request $request)
+{
+    // Check if we're getting data from the request body or from a delete request
+    $ids = $request->input('ids', []);
+    
+    // If using DELETE method, the data might be in the request body
+    if (empty($ids) && $request->isMethod('delete')) {
+        $data = $request->json()->all();
+        $ids = $data['ids'] ?? [];
+    }
+    
+    // Validate the IDs
+    $validator = Validator::make(['ids' => $ids], [
+        'ids' => 'required|array',
+        'ids.*' => 'required|integer|exists:students,id',
+    ]);
+    
+    if ($validator->fails()) {
+        return response()->json([
+            'message' => 'Invalid student IDs',
+            'errors' => $validator->errors()
+        ], 422);
+    }
+
+    // Perform bulk deletion
+    $deletedCount = Students::whereIn('id', $ids)->delete();
+
+    return response()->json([
+        'message' => "Successfully deleted $deletedCount students",
+        'deletedCount' => $deletedCount,
+    ]);
 }
 
 }

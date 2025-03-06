@@ -17,6 +17,8 @@ Route::post('students', [StudentController::class, 'store']);
 Route::put('students/{id}', [StudentController::class, 'update']);
 Route::delete('students/{id}', [StudentController::class, 'destroy']);
 Route::post('/students/import', [StudentController::class, 'import']);
+Route::delete('/students/bulk', [StudentController::class, 'bulkDelete']);
+Route::post('/students/bulk-delete', [StudentController::class, 'bulkDelete']);
 
 //
 

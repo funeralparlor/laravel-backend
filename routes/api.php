@@ -4,6 +4,7 @@ use App\Http\Controllers\StudentController;
 
 use Illuminate\Support\Facades\Route;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\CollegeController;
 
 
 
@@ -31,3 +32,6 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::get('/user', [AuthController::class, 'user']);
     Route::post('/logout', [AuthController::class, 'logout']);
 });
+
+//Course
+Route::get('/colleges/{college}/courses', [CollegeController::class, 'getCoursesByCollege']);

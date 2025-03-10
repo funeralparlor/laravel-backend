@@ -13,7 +13,6 @@ use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Illuminate\Support\Facades\Validator;
 
 
-
 class StudentController extends Controller
 {
     // Get all students
@@ -38,10 +37,6 @@ class StudentController extends Controller
         $query = Students::query();
         
         // Apply filters
-
-        if ($request->has('year_level') && count($request->year_level) > 0) {
-            $query->whereIn('year_level', $request->year_level);
-        }
         if ($request->has('semester') && count($request->semester) > 0) {
             $query->whereIn('semester', $request->semester);
         }
@@ -239,8 +234,7 @@ class StudentController extends Controller
     $worksheet = $spreadsheet->getActiveSheet();
     $rows = $worksheet->toArray();
 
-   
-    
+    // Trim headers and remove empty rows
     $headers = array_map('trim', array_shift($rows));
     $students = [];
     $errors = [];
@@ -252,9 +246,7 @@ class StudentController extends Controller
         }
 
         // Combine headers with row data and ensure string values
-        $row = array_map(function ($value) {
-            return is_numeric($value) ? (string)$value : $value;
-        }, array_combine($headers, $row));
+        $row = array_map('strval', array_combine($headers, $row));
 
         // Data validation
         $validator = Validator::make($row, [
@@ -274,7 +266,7 @@ class StudentController extends Controller
             'TOWN/CITY' => 'required',
             'Province' => 'required',
             'Email' => 'required',
-            'MobileNo' => 'nullable|string',
+            'MobileNo.' => 'required',
             'FatherName' => 'required',
             'Father_Occupation' => 'required',
             'MotherName' => 'required',
@@ -304,19 +296,19 @@ class StudentController extends Controller
             'gender' => $row['GENDER'],
             'birthday' => $row['DATE OF BIRTH'],
             'birth_place' => $row['PLACE OF BIRTH'],
-            'comp_address' => $row['COMPLETE ADDRESS'] ?? null,
+            'comp_address' => $row['COMPLETE ADDRESS'] ?? null,,
             'barangay' => $row['BARANGAY'],
             'town' => $row['TOWN/CITY'],
             'province' => $row['Province'],
             'email' => $row['Email'],
-            'number' => $row['MobileNo'] ?? null,
+            'number' => $row['MobileNo.'],
             'father_name' => $row['FatherName'],
             'father_occup' => $row['Father_Occupation'],
             'mother_name' => $row['MotherName'],
             'mother_occup' => $row['Mother_Occupation'],
-            'student_status' => $row['Student_Status'],
-            'last_sem' => $row['Last sem of enrolment for inactive'],
-            'section' => $row['Section'],
+            'student_status' => $row['Last sem of enrolment for inactive'],
+            'last_sem' => $row['Section'],
+            'section' => $row['Course'],
             'approved' => $row['Approved to share the information'],
             'created_at' => now(),
             'updated_at' => now(),

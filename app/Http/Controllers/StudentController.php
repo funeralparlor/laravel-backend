@@ -98,7 +98,7 @@ class StudentController extends Controller
 
             'year_level' => 'required|max:255',             // Year Level e.g 3rd Year
 
-            'gender' => 'required|unique:students|max:255',             // Gender F or M
+            'gender' => 'required|max:255',             // Gender F or M
 
             'birthday' => 'required|max:255',             // Date of Birth
 
@@ -110,13 +110,13 @@ class StudentController extends Controller
 
             'town' => 'required|max:255',             // Town / City
 
-            'province' => 'required|unique:students|max:255',             // Province e.g Metro Manila
+            'province' => 'required|max:255',             // Province e.g Metro Manila
 
             'email' => 'required|max:255',             // Email Address
 
             'number' => 'required|max:255',             // Mobile Number
 
-            'father_name' => 'nullable|max:255',             // Father Full Name, Surname First
+            'father_name' => 'required|max:255',                // Father Full Name, Surname First
 
             'father_occup' => 'required|max:255',             // Father Occupation
 
@@ -155,13 +155,54 @@ class StudentController extends Controller
         'max:255',
         Rule::unique('students', 'student_id')->ignore($students->id),
     ],
-            'last_name' => 'required|max:255',
-            'first_name' => 'required|max:255',
-            'middle_name' => 'nullable|max:255',
-            'semester' => 'required|max:255',
-            'course' => 'required|max:255',
-            'campus' => 'required|max:255',
-            'scholarship_type' => 'required|max:255',
+            'last_name' => 'required|max:255',             // Last Name
+
+            'first_name' => 'required|max:255',            // Given Name
+
+            'middle_name' => 'nullable|max:255',            // Middle Name
+
+            'course' => 'required|max:255',            // College Course
+
+            'college' => 'required|max:255',             // College Faculty e.g BSIT
+
+            'campus' => 'required|max:255',             // Campus e.g Main Campus
+
+            'year_level' => 'required|max:255',             // Year Level e.g 3rd Year
+
+            'gender' => 'required|max:255',             // Gender F or M
+
+            'birthday' => 'required|max:255',             // Date of Birth
+
+            'birth_place' => 'required|max:255',             // Place of Birth
+
+            'comp_address' => 'nullable|max:255',             // Complete Address
+
+            'barangay' => 'required|max:255', // Barangay
+
+            'town' => 'required|max:255',             // Town / City
+
+            'province' => 'required|max:255',             // Province e.g Metro Manila
+
+            'email' => 'required|max:255',             // Email Address
+
+            'number' => 'required|max:255',             // Mobile Number
+
+            'father_name' => 'required|max:255',                // Father Full Name, Surname First
+
+            'father_occup' => 'required|max:255',             // Father Occupation
+
+            'mother_name' => 'required|max:255',             // Mother Full Name
+
+            'mother_occup' => 'required|max:255',             // Mother Occupation
+
+            'student_status' => 'required|max:255',             // Student Status e.g Regular or Irregular
+
+            'last_sem' => 'required|max:255',             // Last Sem of Enrolment for Inactive
+
+            'section' => 'required|max:255',             // Section
+
+            'approved' => 'required|max:255',   
+           
         ]);
 
         $students->update($validated);

@@ -13,6 +13,7 @@ use App\Http\Controllers\CollegeController;
 // Public routes
 Route::get('students', [StudentController::class, 'index']);
 Route::get('students/{id}', [StudentController::class, 'show']);
+Route::get('/api/students/search', [StudentController::class, 'search']);
 
 Route::post('students', [StudentController::class, 'store']);
 Route::put('students/{id}', [StudentController::class, 'update']);
@@ -23,7 +24,7 @@ Route::post('/students/bulk-delete', [StudentController::class, 'bulkDelete']);
 
 //
 
-Route::get('/students/template', [StudentController::class, 'downloadTemplate']);
+
 
 //AUTH
 Route::post('/login', [AuthController::class, 'login']);

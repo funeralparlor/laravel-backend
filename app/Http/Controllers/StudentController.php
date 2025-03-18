@@ -369,4 +369,63 @@ class StudentController extends Controller
         
         return response()->json(['data' => $students, 'total' => $students->count()]);
     }
+
+    // Add this method inside StudentController
+public function dashboard()
+{
+    // Total number of students
+    $totalStudents = Students::count();
+
+    // Students grouped by course
+    $studentsByCourse = Students::select('course', DB::raw('count(*) as total'))
+        ->groupBy('course')
+        ->get();
+
+    // Students grouped by college
+    $studentsByCollege = Students::select('college', DB::raw('count(*) as total'))
+        ->groupBy('college')
+        ->get();
+
+    // Students grouped by campus
+    $studentsByCampus = Students::select('campus', DB::raw('count(*) as total'))
+        ->groupBy('campus')
+        ->get();
+
+    // Gender distribution
+    $genderDistribution = Students::select('gender', DB::raw('count(*) as total'))
+        ->groupBy('gender')
+        ->get();
+
+    // Year level distribution
+    $yearLevelDistribution = Students::select('year_level', DB::raw('count(*) as total'))
+        ->groupBy('year_level')
+        ->get();
+
+    // Student status (active/inactive)
+    $studentStatus = Students::select('student_status', DB::raw('count(*) as total'))
+        ->groupBy('student_status')
+        ->get();
+
+    // Approval status (normalize 'approved' values)
+    $approvalStatus = Students::select(
+        DB::raw("CASE 
+            WHEN LOWER(approved) IN ('yes', '1') THEN 'yes' 
+            WHEN LOWER(approved) IN ('no', '0') THEN 'no' 
+            ELSE LOWER(approved) 
+        END as approval_status"),
+        DB::raw('count(*) as total')
+    )->groupBy('approval_status')
+     ->get();
+
+    return response()->json([
+        'total_students' => $totalStudents,
+        'students_by_course' => $studentsByCourse,
+        'students_by_college' => $studentsByCollege,
+        'students_by_campus' => $studentsByCampus,
+        'gender_distribution' => $genderDistribution,
+        'year_level_distribution' => $yearLevelDistribution,
+        'student_status' => $studentStatus,
+        'approval_status' => $approvalStatus,
+    ]);
+}
 }

@@ -11,6 +11,8 @@ use App\Http\Controllers\CollegeController;
 
 
 // Public routes
+Route::get('/students/dashboard', [StudentController::class, 'dashboard']);
+
 Route::get('students', [StudentController::class, 'index']);
 Route::get('students/{id}', [StudentController::class, 'show']);
 Route::get('/api/students/search', [StudentController::class, 'search']);

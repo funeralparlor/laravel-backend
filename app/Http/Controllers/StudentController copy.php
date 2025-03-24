@@ -5,16 +5,53 @@ namespace App\Http\Controllers;
 use App\Models\Students;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
-use App\Imports\StudentsImport;
-use Maatwebsite\Excel\Facades\Excel;
-use Maatwebsite\Excel\Validators\ValidationException;
 use PhpOffice\PhpSpreadsheet\IOFactory;
-use PhpOffice\PhpSpreadsheet\Shared\Date;
 use Illuminate\Support\Facades\Validator;
-
+use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
 {
+    // Common validation rules to avoid repetition
+    private function getValidationRules($id = null)
+    {
+        $rules = [
+            'student_id' => ['required', 'max:255'],
+            'last_name' => 'required|max:255',
+            'first_name' => 'required|max:255',
+            'middle_name' => 'nullable|max:255',
+            'course' => 'required|max:255',
+            'college' => 'required|max:255',
+            'campus' => 'required|max:255',
+            'year_level' => 'required|max:255',
+            'gender' => 'required|max:255',
+            'birthday' => 'required|date',
+            'birth_place' => 'required|max:255',
+            'comp_address' => 'nullable|max:255',
+            'barangay' => 'required|max:255',
+            'town' => 'required|max:255',
+            'province' => 'required|max:255',
+            'email' => 'required|email|max:255',
+            'number' => 'required|max:20',
+            'father_name' => 'required|max:255',
+            'father_occup' => 'required|max:255',
+            'mother_name' => 'required|max:255',
+            'mother_occup' => 'required|max:255',
+            'student_status' => 'required|max:255',
+            'last_sem' => 'required|max:255',
+            'section' => 'required|max:255',
+            'approved' => 'required|in:yes,no,Yes,No,YES,NO,1,0',
+        ];
+
+        // For update operations, modify the student_id rule to ignore the current record
+        if ($id) {
+            $rules['student_id'][] = Rule::unique('students')->ignore($id);
+        } else {
+            $rules['student_id'][] = 'unique:students';
+        }
+
+        return $rules;
+    }
+
     // Get all students
     public function index(Request $request)
     {
@@ -22,6 +59,7 @@ class StudentController extends Controller
         $request->validate([
             'page' => 'nullable|integer|min:1',
             'limit' => 'nullable|integer|min:1',
+            'year_level' => 'nullable|array',
             'semester' => 'nullable|array',
             'course' => 'nullable|array',
             'campus' => 'nullable|array',
@@ -31,34 +69,26 @@ class StudentController extends Controller
     
         // Get pagination parameters
         $page = $request->query('page', 1);
-        $limit = $request->query('limit', 10);
+        $limit = $request->input('limit', 10);
         
-        // If limit is -1, we want all records (no pagination)
+        // Start query
         $query = Students::query();
         
-        // Apply filters
-        if ($request->has('semester') && count($request->semester) > 0) {
-            $query->whereIn('semester', $request->semester);
+        // Apply filters with consistent approach
+        $filterFields = ['year_level', 'semester', 'course', 'campus', 'scholarship_type'];
+        foreach ($filterFields as $field) {
+            if ($request->has($field) && is_array($request->input($field)) && count($request->input($field)) > 0) {
+                $query->whereIn($field, $request->input($field));
+            }
         }
         
-        if ($request->has('course') && count($request->course) > 0) {
-            $query->whereIn('course', $request->course);
+        // Search by student ID - using a more secure parameterized query
+        if ($request->filled('search')) {
+            $query->where('student_id', 'LIKE', '%' . $request->input('search') . '%');
         }
         
-        if ($request->has('campus') && count($request->campus) > 0) {
-            $query->whereIn('campus', $request->campus);
-        }
-        
-        if ($request->has('scholarship_type') && count($request->scholarship_type) > 0) {
-            $query->whereIn('scholarship_type', $request->scholarship_type);
-        }
-        
-        // Search by student ID
-        if ($request->has('search') && !empty($request->search)) {
-            $query->where('student_id', 'LIKE', '%' . $request->search . '%');
-        }
-        
-        if ($limit === -1) {
+        // Handle pagination
+        if ($limit == -1) {
             $students = $query->get();
             return response()->json([
                 'data' => $students,
@@ -80,304 +110,322 @@ class StudentController extends Controller
     // Create student with validation
     public function store(Request $request)
     {
-        // Validate the request
-        $validated = $request->validate([
-            'student_id' => 'required|unique:students|max:255',  //Student Number
-
-            'last_name' => 'required|max:255',             // Last Name
-
-            'first_name' => 'required|max:255',            // Given Name
-
-            'middle_name' => 'nullable|max:255',            // Middle Name
-
-            'course' => 'required|max:255',            // College Course
-
-            'college' => 'required|max:255',             // College Faculty e.g BSIT
-
-            'campus' => 'required|max:255',             // Campus e.g Main Campus
-
-            'year_level' => 'required|max:255',             // Year Level e.g 3rd Year
-
-            'gender' => 'required|max:255',             // Gender F or M
-
-            'birthday' => 'required|max:255',             // Date of Birth
-
-            'birth_place' => 'required|max:255',             // Place of Birth
-
-            'comp_address' => 'nullable|max:255',             // Complete Address
-
-            'barangay' => 'required|max:255', // Barangay
-
-            'town' => 'required|max:255',             // Town / City
-
-            'province' => 'required|max:255',             // Province e.g Metro Manila
-
-            'email' => 'required|max:255',             // Email Address
-
-            'number' => 'required|max:255',             // Mobile Number
-
-            'father_name' => 'required|max:255',                // Father Full Name, Surname First
-
-            'father_occup' => 'required|max:255',             // Father Occupation
-
-            'mother_name' => 'required|max:255',             // Mother Full Name
-
-            'mother_occup' => 'required|max:255',             // Mother Occupation
-
-            'student_status' => 'required|max:255',             // Student Status e.g Regular or Irregular
-
-            'last_sem' => 'required|max:255',             // Last Sem of Enrolment for Inactive
-
-            'section' => 'required|max:255',             // Section
-
-            'approved' => 'required|max:255',             // Approved to share the information
-
-            
-
-         
-    
-        ]);
+        // Validate the request using common rules
+        $validated = $request->validate($this->getValidationRules());
     
         // Create the student
-        $students = Students::create($validated);
+        $student = Students::create($validated);
     
         // Return the created student as JSON
-        return response()->json($students, 201); // 201 = Created
+        return response()->json($student, 201);
     }
+
     // Update student with validation
     public function update(Request $request, $id)
     {
-        $students = Students::findOrFail($id);
+        $student = Students::findOrFail($id);
         
-        $validated = $request->validate([
-            'student_id' => [
-        'required',
-        'max:255',
-        Rule::unique('students', 'student_id')->ignore($students->id),
-    ],
-            'last_name' => 'required|max:255',             // Last Name
+        // Validate using common rules with the current ID
+        $validated = $request->validate($this->getValidationRules($id));
 
-            'first_name' => 'required|max:255',            // Given Name
-
-            'middle_name' => 'nullable|max:255',            // Middle Name
-
-            'course' => 'required|max:255',            // College Course
-
-            'college' => 'required|max:255',             // College Faculty e.g BSIT
-
-            'campus' => 'required|max:255',             // Campus e.g Main Campus
-
-            'year_level' => 'required|max:255',             // Year Level e.g 3rd Year
-
-            'gender' => 'required|max:255',             // Gender F or M
-
-            'birthday' => 'required|max:255',             // Date of Birth
-
-            'birth_place' => 'required|max:255',             // Place of Birth
-
-            'comp_address' => 'nullable|max:255',             // Complete Address
-
-            'barangay' => 'required|max:255', // Barangay
-
-            'town' => 'required|max:255',             // Town / City
-
-            'province' => 'required|max:255',             // Province e.g Metro Manila
-
-            'email' => 'required|max:255',             // Email Address
-
-            'number' => 'required|max:255',             // Mobile Number
-
-            'father_name' => 'required|max:255',                // Father Full Name, Surname First
-
-            'father_occup' => 'required|max:255',             // Father Occupation
-
-            'mother_name' => 'required|max:255',             // Mother Full Name
-
-            'mother_occup' => 'required|max:255',             // Mother Occupation
-
-            'student_status' => 'required|max:255',             // Student Status e.g Regular or Irregular
-
-            'last_sem' => 'required|max:255',             // Last Sem of Enrolment for Inactive
-
-            'section' => 'required|max:255',             // Section
-
-            'approved' => 'required|max:255',   
-           
-        ]);
-
-        $students->update($validated);
-        return response()->json($students);
+        $student->update($validated);
+        return response()->json($student);
     }
 
+    // Get single student by ID
     public function show($id)
-{
-    $students = Students::findOrFail($id);
-    return response()->json($students);
-}
+    {
+        $student = Students::findOrFail($id);
+        return response()->json($student);
+    }
 
     // Delete student
     public function destroy($id)
     {
-        Students::destroy($id);
+        Students::findOrFail($id)->delete();
         return response()->json(null, 204);
     }
 
     // Import students
     public function import(Request $request)
-{
-    $request->validate([
-        'file' => 'required|file|mimes:xls,xlsx,xlsm'
-    ]);
-
-    $file = $request->file('file');
-    $spreadsheet = IOFactory::load($file->getPathname());
-    $worksheet = $spreadsheet->getActiveSheet();
-    $rows = $worksheet->toArray();
-
-    // Trim headers and remove empty rows
-    $headers = array_map('trim', array_shift($rows));
-    $students = [];
-    $errors = [];
-    
-    foreach ($rows as $index => $row) {
-        // Skip empty rows
-        if (empty(array_filter($row))) {
-            continue;
-        }
-
-        // Combine headers with row data and ensure string values
-        $row = array_map('strval', array_combine($headers, $row));
-
-        // Data validation
-        $validator = Validator::make($row, [
-            'STUDENT NUMBER' => 'required|unique:students,student_id',
-            'LAST NAME' => 'required',
-            'GIVEN NAME' => 'required',
-            'MIDDLE NAME' => 'required',
-            'COURSE' => 'required',
-            'COLLEGE' => 'required',
-            'CAMPUS' => 'required',
-            'YEAR LEVEL' => 'required',
-            'GENDER' => 'required',
-            'DATE OF BIRTH' => 'required',
-            'PLACE OF BIRTH' => 'required',
-            'COMPLETE ADDRESS' => 'required',
-            'BARANGAY' => 'required',
-            'TOWN/CITY' => 'required',
-            'Province' => 'required',
-            'Email' => 'required',
-            'MobileNo.' => 'required',
-            'FatherName' => 'required',
-            'Father_Occupation' => 'required',
-            'MotherName' => 'required',
-            'Mother_Occupation' => 'required',
-            'Student_Status' => 'required',
-            'Last sem of enrolment for inactive' => 'required',
-            'Section' => 'required',
-            'Approved to share the information' => 'required'
-
-            
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xls,xlsx,xlsm'
         ]);
 
-        if ($validator->fails()) {
-            $errors["Row $index"] = $validator->errors()->all();
-            continue;
+        $file = $request->file('file');
+        $spreadsheet = IOFactory::load($file->getPathname());
+        $worksheet = $spreadsheet->getActiveSheet();
+        $rows = $worksheet->toArray();
+        
+        if (empty($rows)) {
+            return response()->json([
+                'message' => 'The uploaded file contains no data'
+            ], 422);
         }
-
-        $students[] = [
-            'student_id' => $row['STUDENT NUMBER'],
-            'last_name' => $row['LAST NAME'],
-            'first_name' => $row['GIVEN NAME'],
-            'middle_name' => $row['MIDDLE NAME'] ?? null,
-            'course' => $row['COURSE'],
-            'college' => $row['COLLEGE'],
-            'campus' => $row['CAMPUS'],
-            'year_level' => $row['YEAR LEVEL'],
-            'gender' => $row['GENDER'],
-            'birthday' => $row['DATE OF BIRTH'],
-            'birth_place' => $row['PLACE OF BIRTH'],
-            'comp_address' => $row['COMPLETE ADDRESS'] ?? null,,
-            'barangay' => $row['BARANGAY'],
-            'town' => $row['TOWN/CITY'],
-            'province' => $row['Province'],
-            'email' => $row['Email'],
-            'number' => $row['MobileNo.'],
-            'father_name' => $row['FatherName'],
-            'father_occup' => $row['Father_Occupation'],
-            'mother_name' => $row['MotherName'],
-            'mother_occup' => $row['Mother_Occupation'],
-            'student_status' => $row['Last sem of enrolment for inactive'],
-            'last_sem' => $row['Section'],
-            'section' => $row['Course'],
-            'approved' => $row['Approved to share the information'],
-            'created_at' => now(),
-            'updated_at' => now(),
+        
+        $headers = array_map('trim', array_shift($rows));
+        $students = [];
+        $errors = [];
+        $requiredColumns = [
+            'STUDENT NUMBER', 'LAST NAME', 'GIVEN NAME', 'COURSE', 'COLLEGE', 
+            'CAMPUS', 'YEAR LEVEL', 'GENDER', 'DATE OF BIRTH', 'PLACE OF BIRTH',
+            'BARANGAY', 'TOWN/CITY', 'Province', 'Email', 'FatherName',
+            'Father_Occupation', 'MotherName', 'Mother_Occupation', 'Student_Status',
+            'Last sem of enrolment for inactive', 'Section', 'Approved to share the information'
         ];
+        
+        // Verify all required headers exist
+        $missingColumns = array_diff($requiredColumns, $headers);
+        if (!empty($missingColumns)) {
+            return response()->json([
+                'message' => 'The uploaded file is missing required columns',
+                'missing_columns' => $missingColumns
+            ], 422);
+        }
+        
+        foreach ($rows as $index => $row) {
+            // Skip empty rows
+            if (empty(array_filter($row))) {
+                continue;
+            }
 
+            // Check row length matches headers
+            if (count($row) !== count($headers)) {
+                $errors["Row " . ($index + 2)] = ["Column count mismatch. Expected " . count($headers) . " columns, got " . count($row)];
+                continue;
+            }
+
+            // Combine headers with row data and ensure string values
+            $rowData = [];
+            foreach ($headers as $colIndex => $header) {
+                $value = $row[$colIndex];
+                $rowData[$header] = is_numeric($value) ? (string)$value : $value;
+            }
+
+            // Data validation
+            $validator = Validator::make($rowData, [
+                'STUDENT NUMBER' => 'required|unique:students,student_id',
+                'LAST NAME' => 'required',
+                'GIVEN NAME' => 'required',
+                'MIDDLE NAME' => 'nullable',
+                'COURSE' => 'required',
+                'COLLEGE' => 'required',
+                'CAMPUS' => 'required',
+                'YEAR LEVEL' => 'required',
+                'GENDER' => 'required',
+                'DATE OF BIRTH' => 'required',
+                'PLACE OF BIRTH' => 'required',
+                'COMPLETE ADDRESS' => 'nullable',
+                'BARANGAY' => 'required',
+                'TOWN/CITY' => 'required',
+                'Province' => 'required',
+                'Email' => 'required|email',
+                'MobileNo' => 'nullable',
+                'FatherName' => 'required',
+                'Father_Occupation' => 'required',
+                'MotherName' => 'required',
+                'Mother_Occupation' => 'required',
+                'Student_Status' => 'required',
+                'Last sem of enrolment for inactive' => 'required',
+                'Section' => 'required',
+                'Approved to share the information' => 'required'
+            ]);
+
+            if ($validator->fails()) {
+                $errors["Row " . ($index + 2)] = $validator->errors()->all();
+                continue;
+            }
+
+            $students[] = [
+                'student_id' => $rowData['STUDENT NUMBER'],
+                'last_name' => $rowData['LAST NAME'],
+                'first_name' => $rowData['GIVEN NAME'],
+                'middle_name' => $rowData['MIDDLE NAME'] ?? null,
+                'course' => $rowData['COURSE'],
+                'college' => $rowData['COLLEGE'],
+                'campus' => $rowData['CAMPUS'],
+                'year_level' => $rowData['YEAR LEVEL'],
+                'gender' => $rowData['GENDER'],
+                'birthday' => $rowData['DATE OF BIRTH'],
+                'birth_place' => $rowData['PLACE OF BIRTH'],
+                'comp_address' => $rowData['COMPLETE ADDRESS'] ?? null,
+                'barangay' => $rowData['BARANGAY'],
+                'town' => $rowData['TOWN/CITY'],
+                'province' => $rowData['Province'],
+                'email' => $rowData['Email'],
+                'number' => $rowData['MobileNo'] ?? null,
+                'father_name' => $rowData['FatherName'],
+                'father_occup' => $rowData['Father_Occupation'],
+                'mother_name' => $rowData['MotherName'],
+                'mother_occup' => $rowData['Mother_Occupation'],
+                'student_status' => $rowData['Student_Status'],
+                'last_sem' => $rowData['Last sem of enrolment for inactive'],
+                'section' => $rowData['Section'],
+                'approved' => $rowData['Approved to share the information'],
+                'created_at' => now(),
+                'updated_at' => now(),
+            ];
+        }
+
+        if (empty($students)) {
+            return response()->json([
+                'message' => 'No valid student data found in the uploaded file',
+                'errors' => $errors
+            ], 422);
+        }
+
+        if (!empty($errors)) {
+            return response()->json([
+                'message' => 'Some rows failed validation',
+                'errors' => $errors
+            ], 422);
+        }
+
+        try {
+            // Use chunking for better memory management with large datasets
+            $chunkedStudents = array_chunk($students, 100);
+            foreach ($chunkedStudents as $chunk) {
+                DB::table('students')->insert($chunk);
+            }
+            
+            return response()->json([
+                'message' => 'Students imported successfully',
+                'count' => count($students)
+            ]);
+        } catch (\Exception $e) {
+            return response()->json([
+                'message' => 'Import failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
 
-    if (!empty($errors)) {
-        return response()->json([
-            'message' => 'Some rows failed validation',
-            'errors' => $errors
-        ], 422);
-    }
-
-    try {
-        \DB::table('students')->insert($students);
-        return response()->json([
-            'message' => 'Students imported successfully',
-            'count' => count($students)
+    /**
+     * Handle bulk deletion of students
+     * 
+     * @param  \Illuminate\Http\Request  $request
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function bulkDelete(Request $request)
+    {
+        // Extract IDs from request
+        $ids = $request->input('ids', []);
+        
+        // If using DELETE method, the data might be in the request body
+        if (empty($ids) && $request->isMethod('delete')) {
+            $data = $request->json()->all();
+            $ids = $data['ids'] ?? [];
+        }
+        
+        // Validate the IDs
+        $validator = Validator::make(['ids' => $ids], [
+            'ids' => 'required|array|min:1',
+            'ids.*' => 'required|integer|exists:students,id',
         ]);
-    } catch (\Exception $e) {
-        return response()->json([
-            'message' => 'Import failed',
-            'error' => $e->getMessage()
-        ], 500);
+        
+        if ($validator->fails()) {
+            return response()->json([
+                'message' => 'Invalid student IDs',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            // Use transaction for atomicity
+            DB::beginTransaction();
+            $deletedCount = Students::whereIn('id', $ids)->delete();
+            DB::commit();
+
+            return response()->json([
+                'message' => "Successfully deleted $deletedCount students",
+                'deletedCount' => $deletedCount,
+            ]);
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return response()->json([
+                'message' => 'Deletion failed',
+                'error' => $e->getMessage()
+            ], 500);
+        }
     }
-}
 
+    public function search(Request $request)
+    {
+        $request->validate([
+            'student_id' => 'nullable|string|max:100',
+        ]);
+        
+        $studentId = $request->input('student_id');
+        
+        if (empty($studentId)) {
+            return response()->json(['data' => [], 'total' => 0]);
+        }
+        
+        $students = Students::where('student_id', 'like', "%{$studentId}%")
+                          ->orderBy('last_name')
+                          ->limit(50)
+                          ->get();
+        
+        return response()->json(['data' => $students, 'total' => $students->count()]);
+    }
 
-/**
- * Handle bulk deletion of students
- * 
- * @param  \Illuminate\Http\Request  $request
- * @return \Illuminate\Http\JsonResponse
- */
-public function bulkDelete(Request $request)
+    // Add this method inside StudentController
+public function dashboard()
 {
-    // Check if we're getting data from the request body or from a delete request
-    $ids = $request->input('ids', []);
-    
-    // If using DELETE method, the data might be in the request body
-    if (empty($ids) && $request->isMethod('delete')) {
-        $data = $request->json()->all();
-        $ids = $data['ids'] ?? [];
-    }
-    
-    // Validate the IDs
-    $validator = Validator::make(['ids' => $ids], [
-        'ids' => 'required|array',
-        'ids.*' => 'required|integer|exists:students,id',
-    ]);
-    
-    if ($validator->fails()) {
-        return response()->json([
-            'message' => 'Invalid student IDs',
-            'errors' => $validator->errors()
-        ], 422);
-    }
+    // Total number of students
+    $totalStudents = Students::count();
 
-    // Perform bulk deletion
-    $deletedCount = Students::whereIn('id', $ids)->delete();
+    // Students grouped by course
+    $studentsByCourse = Students::select('course', DB::raw('count(*) as total'))
+        ->groupBy('course')
+        ->get();
+
+    // Students grouped by college
+    $studentsByCollege = Students::select('college', DB::raw('count(*) as total'))
+        ->groupBy('college')
+        ->get();
+
+    // Students grouped by campus
+    $studentsByCampus = Students::select('campus', DB::raw('count(*) as total'))
+        ->groupBy('campus')
+        ->get();
+
+    // Gender distribution
+    $genderDistribution = Students::select('gender', DB::raw('count(*) as total'))
+        ->groupBy('gender')
+        ->get();
+
+    // Year level distribution
+    $yearLevelDistribution = Students::select('year_level', DB::raw('count(*) as total'))
+        ->groupBy('year_level')
+        ->get();
+
+    // Student status (active/inactive)
+    $studentStatus = Students::select('student_status', DB::raw('count(*) as total'))
+        ->groupBy('student_status')
+        ->get();
+
+    // Approval status (normalize 'approved' values)
+    $approvalStatus = Students::select(
+        DB::raw("CASE 
+            WHEN LOWER(approved) IN ('yes', '1') THEN 'yes' 
+            WHEN LOWER(approved) IN ('no', '0') THEN 'no' 
+            ELSE LOWER(approved) 
+        END as approval_status"),
+        DB::raw('count(*) as total')
+    )->groupBy('approval_status')
+     ->get();
 
     return response()->json([
-        'message' => "Successfully deleted $deletedCount students",
-        'deletedCount' => $deletedCount,
+        'total_students' => $totalStudents,
+        'students_by_course' => $studentsByCourse,
+        'students_by_college' => $studentsByCollege,
+        'students_by_campus' => $studentsByCampus,
+        'gender_distribution' => $genderDistribution,
+        'year_level_distribution' => $yearLevelDistribution,
+        'student_status' => $studentStatus,
+        'approval_status' => $approvalStatus,
     ]);
 }
-
-
-
-
 }

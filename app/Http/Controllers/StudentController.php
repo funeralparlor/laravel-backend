@@ -40,6 +40,7 @@ class StudentController extends Controller
             'last_sem' => 'required|max:255',
             'section' => 'required|max:255',
             'approved' => 'required|in:yes,no,Yes,No,YES,NO,1,0',
+            'scholar_ship' => 'required|max:255',
         ];
 
         // For update operations, modify the student_id rule to ignore the current record
@@ -64,6 +65,7 @@ class StudentController extends Controller
             'course' => 'nullable|array',
             'campus' => 'nullable|array',
             'scholarship_type' => 'nullable|array',
+            'scholar_ship' => 'nullable|array',
             'search' => 'nullable|string|max:100',
         ]);
     
@@ -75,7 +77,7 @@ class StudentController extends Controller
         $query = Students::query();
         
         // Apply filters with consistent approach
-        $filterFields = ['year_level', 'semester', 'course', 'campus', 'scholarship_type'];
+        $filterFields = ['year_level', 'semester', 'course', 'campus', 'scholarship_type', 'scholar_ship'];
         foreach ($filterFields as $field) {
             if ($request->has($field) && is_array($request->input($field)) && count($request->input($field)) > 0) {
                 $query->whereIn($field, $request->input($field));
@@ -173,7 +175,7 @@ class StudentController extends Controller
             'CAMPUS', 'YEAR LEVEL', 'GENDER', 'DATE OF BIRTH', 'PLACE OF BIRTH',
             'BARANGAY', 'TOWN/CITY', 'Province', 'Email', 'FatherName',
             'Father_Occupation', 'MotherName', 'Mother_Occupation', 'Student_Status',
-            'Last sem of enrolment for inactive', 'Section', 'Approved to share the information'
+            'Last sem of enrolment for inactive', 'Section', 'Approved to share the information', 'Scholarship Type'
         ];
         
         // Verify all required headers exist
@@ -230,7 +232,8 @@ class StudentController extends Controller
                 'Student_Status' => 'required',
                 'Last sem of enrolment for inactive' => 'required',
                 'Section' => 'required',
-                'Approved to share the information' => 'required'
+                'Approved to share the information' => 'required',
+                'Scholarship Type' => 'required'
             ]);
 
             if ($validator->fails()) {
@@ -264,6 +267,7 @@ class StudentController extends Controller
                 'last_sem' => $rowData['Last sem of enrolment for inactive'],
                 'section' => $rowData['Section'],
                 'approved' => $rowData['Approved to share the information'],
+                'scholar_ship' => $rowData['Scholarship Type'],
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -407,6 +411,10 @@ public function dashboard()
         ->groupBy('year_level')
         ->get();
 
+     $studentScholar = Students::select('scholar_ship', DB::raw('count(*) as total'))
+        ->groupBy('scholar_ship')
+        ->get();
+
     // Student status (active/inactive)
     $studentStatus = Students::select('student_status', DB::raw('count(*) as total'))
         ->groupBy('student_status')
@@ -432,6 +440,7 @@ public function dashboard()
         'year_level_distribution' => $yearLevelDistribution,
         'student_status' => $studentStatus,
         'approval_status' => $approvalStatus,
+        'student_scholarship' => $studentScholar,
     ]);
 }
 

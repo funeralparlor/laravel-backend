@@ -36,6 +36,7 @@ class Students extends Model
         'last_sem', // Last Sem of Enrolment for Inactive
         'section', // Section
         'approved', // Approved to share the information
+        'scholar_ship', // Approved to share the information
 
       
     ];

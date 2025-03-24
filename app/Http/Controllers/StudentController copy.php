@@ -40,6 +40,7 @@ class StudentController extends Controller
             'last_sem' => 'required|max:255',
             'section' => 'required|max:255',
             'approved' => 'required|in:yes,no,Yes,No,YES,NO,1,0',
+            'scholar_ship' => 'required|max:255',
         ];
 
         // For update operations, modify the student_id rule to ignore the current record
@@ -142,8 +143,9 @@ class StudentController extends Controller
     // Delete student
     public function destroy($id)
     {
-        Students::findOrFail($id)->delete();
-        return response()->json(null, 204);
+        $student = Students::findOrFail($id);
+    $student->delete();
+    return response()->json(['message' => 'Student moved to trash']);
     }
 
     // Import students
@@ -172,7 +174,7 @@ class StudentController extends Controller
             'CAMPUS', 'YEAR LEVEL', 'GENDER', 'DATE OF BIRTH', 'PLACE OF BIRTH',
             'BARANGAY', 'TOWN/CITY', 'Province', 'Email', 'FatherName',
             'Father_Occupation', 'MotherName', 'Mother_Occupation', 'Student_Status',
-            'Last sem of enrolment for inactive', 'Section', 'Approved to share the information'
+            'Last sem of enrolment for inactive', 'Section', 'Approved to share the information', 'Scholarship Type'
         ];
         
         // Verify all required headers exist
@@ -229,7 +231,8 @@ class StudentController extends Controller
                 'Student_Status' => 'required',
                 'Last sem of enrolment for inactive' => 'required',
                 'Section' => 'required',
-                'Approved to share the information' => 'required'
+                'Approved to share the information' => 'required',
+                'Scholarship Type' => 'required'
             ]);
 
             if ($validator->fails()) {
@@ -263,6 +266,7 @@ class StudentController extends Controller
                 'last_sem' => $rowData['Last sem of enrolment for inactive'],
                 'section' => $rowData['Section'],
                 'approved' => $rowData['Approved to share the information'],
+                'scholar_ship' => $rowData['Scholarship Type'],
                 'created_at' => now(),
                 'updated_at' => now(),
             ];
@@ -338,7 +342,7 @@ class StudentController extends Controller
             DB::commit();
 
             return response()->json([
-                'message' => "Successfully deleted $deletedCount students",
+                'message' => "Moved $deletedCount students to trash",
                 'deletedCount' => $deletedCount,
             ]);
         } catch (\Exception $e) {
@@ -348,6 +352,11 @@ class StudentController extends Controller
                 'error' => $e->getMessage()
             ], 500);
         }
+
+        
+    
+    
+        
     }
 
     public function search(Request $request)
@@ -428,4 +437,33 @@ public function dashboard()
         'approval_status' => $approvalStatus,
     ]);
 }
+
+public function trash(Request $request)
+{
+    $trashed = Students::onlyTrashed()
+        ->paginate($request->input('limit', 10));
+        
+    return response()->json([
+        'data' => $trashed->items(),
+        'page' => $trashed->currentPage(),
+        'pages' => $trashed->lastPage(),
+        'total' => $trashed->total(),
+    ]);
+}
+
+public function restore($id)
+{
+    $student = Students::withTrashed()->findOrFail($id);
+    $student->restore();
+    return response()->json(['message' => 'Student restored successfully']);
+}
+
+public function forceDelete($id)
+{
+    $student = Students::withTrashed()->findOrFail($id);
+    $student->forceDelete();
+    return response()->json(null, 204);
+}
+
+
 }

@@ -47,7 +47,8 @@ return [
     |
     */
 
-    'expiration' => 60 * 24,
+    'expiration' => null, // Tokens don't expire based on creation time
+    'inactivity_timeout' => env('SANCTUM_INACTIVITY_TIMEOUT', 30), // Minutes
 
     /*
     |--------------------------------------------------------------------------
@@ -80,5 +81,10 @@ return [
         'encrypt_cookies' => Illuminate\Cookie\Middleware\EncryptCookies::class,
         'validate_csrf_token' => Illuminate\Foundation\Http\Middleware\ValidateCsrfToken::class,
     ],
+
+
+
+  
+    
 
 ];

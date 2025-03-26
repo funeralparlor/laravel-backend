@@ -7,6 +7,7 @@ use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use PhpOffice\PhpSpreadsheet\IOFactory;
 use Illuminate\Support\Facades\Validator;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 
 class StudentController extends Controller
@@ -61,10 +62,10 @@ class StudentController extends Controller
             'page' => 'nullable|integer|min:1',
             'limit' => 'nullable|integer|min:1',
             'year_level' => 'nullable|array',
-            'semester' => 'nullable|array',
+            'college' => 'nullable|array',
             'course' => 'nullable|array',
             'campus' => 'nullable|array',
-            'scholarship_type' => 'nullable|array',
+            'student_status' => 'nullable|array',
             'scholar_ship' => 'nullable|array',
             'search' => 'nullable|string|max:100',
         ]);
@@ -77,7 +78,7 @@ class StudentController extends Controller
         $query = Students::query();
         
         // Apply filters with consistent approach
-        $filterFields = ['year_level', 'semester', 'course', 'campus', 'scholarship_type', 'scholar_ship'];
+        $filterFields = ['year_level', 'college', 'course', 'campus', 'student_status', 'scholar_ship'];
         foreach ($filterFields as $field) {
             if ($request->has($field) && is_array($request->input($field)) && count($request->input($field)) > 0) {
                 $query->whereIn($field, $request->input($field));
@@ -381,68 +382,77 @@ class StudentController extends Controller
     }
 
     // Add this method inside StudentController
-public function dashboard()
-{
-    // Total number of students
-    $totalStudents = Students::count();
-
-    // Students grouped by course
-    $studentsByCourse = Students::select('course', DB::raw('count(*) as total'))
-        ->groupBy('course')
-        ->get();
-
-    // Students grouped by college
-    $studentsByCollege = Students::select('college', DB::raw('count(*) as total'))
-        ->groupBy('college')
-        ->get();
-
-    // Students grouped by campus
-    $studentsByCampus = Students::select('campus', DB::raw('count(*) as total'))
-        ->groupBy('campus')
-        ->get();
-
-    // Gender distribution
-    $genderDistribution = Students::select('gender', DB::raw('count(*) as total'))
-        ->groupBy('gender')
-        ->get();
-
-    // Year level distribution
-    $yearLevelDistribution = Students::select('year_level', DB::raw('count(*) as total'))
-        ->groupBy('year_level')
-        ->get();
-
-     $studentScholar = Students::select('scholar_ship', DB::raw('count(*) as total'))
-        ->groupBy('scholar_ship')
-        ->get();
-
-    // Student status (active/inactive)
-    $studentStatus = Students::select('student_status', DB::raw('count(*) as total'))
-        ->groupBy('student_status')
-        ->get();
-
-    // Approval status (normalize 'approved' values)
-    $approvalStatus = Students::select(
-        DB::raw("CASE 
-            WHEN LOWER(approved) IN ('yes', '1') THEN 'yes' 
-            WHEN LOWER(approved) IN ('no', '0') THEN 'no' 
-            ELSE LOWER(approved) 
-        END as approval_status"),
-        DB::raw('count(*) as total')
-    )->groupBy('approval_status')
-     ->get();
-
-    return response()->json([
-        'total_students' => $totalStudents,
-        'students_by_course' => $studentsByCourse,
-        'students_by_college' => $studentsByCollege,
-        'students_by_campus' => $studentsByCampus,
-        'gender_distribution' => $genderDistribution,
-        'year_level_distribution' => $yearLevelDistribution,
-        'student_status' => $studentStatus,
-        'approval_status' => $approvalStatus,
-        'student_scholarship' => $studentScholar,
-    ]);
-}
+    public function dashboard()
+    {
+        $cacheKey = 'students.dashboard.data';
+        $data = Cache::remember($cacheKey, now()->addMinutes(10), function () {
+            // Optimized queries using DB facade for reduced Eloquent overhead
+            $totalStudents = DB::table('students')->count();
+    
+            // Batch all groupBy queries using efficient SQL
+            $studentsByCourse = DB::table('students')
+                ->select('course', DB::raw('count(*) as total'))
+                ->groupBy('course')
+                ->get();
+    
+            $studentsByCollege = DB::table('students')
+                ->select('college', DB::raw('count(*) as total'))
+                ->groupBy('college')
+                ->get();
+    
+            $studentsByCampus = DB::table('students')
+                ->select('campus', DB::raw('count(*) as total'))
+                ->groupBy('campus')
+                ->get();
+    
+            $genderDistribution = DB::table('students')
+                ->select('gender', DB::raw('count(*) as total'))
+                ->groupBy('gender')
+                ->get();
+    
+            $yearLevelDistribution = DB::table('students')
+                ->select('year_level', DB::raw('count(*) as total'))
+                ->groupBy('year_level')
+                ->get();
+    
+            $studentScholar = DB::table('students')
+                ->select('scholar_ship', DB::raw('count(*) as total'))
+                ->groupBy('scholar_ship')
+                ->get();
+    
+            $studentStatus = DB::table('students')
+                ->select('student_status', DB::raw('count(*) as total'))
+                ->groupBy('student_status')
+                ->get();
+    
+            // Normalize approval status at query level
+            $approvalStatus = DB::table('students')
+                ->select(
+                    DB::raw("CASE 
+                        WHEN LOWER(approved) IN ('yes', '1') THEN 'yes' 
+                        WHEN LOWER(approved) IN ('no', '0') THEN 'no' 
+                        ELSE LOWER(COALESCE(approved, 'pending')) 
+                    END as approval_status"),
+                    DB::raw('count(*) as total')
+                )
+                ->groupBy('approval_status')
+                ->get();
+    
+            return [
+                'total_students' => $totalStudents,
+                'students_by_course' => $studentsByCourse,
+                'students_by_college' => $studentsByCollege,
+                'students_by_campus' => $studentsByCampus,
+                'gender_distribution' => $genderDistribution,
+                'year_level_distribution' => $yearLevelDistribution,
+                'student_status' => $studentStatus,
+                'approval_status' => $approvalStatus,
+                'student_scholarship' => $studentScholar,
+            ];
+        });
+    
+        return response()->json($data);
+    }
 
 public function trash(Request $request)
 {
